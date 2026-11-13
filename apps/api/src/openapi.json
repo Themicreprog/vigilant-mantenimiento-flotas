@@ -1,0 +1,47 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vigilant API",
+    "version": "1.0.0",
+    "description": "API REST para gestionar vehículos, mantenimientos, reglas de alertas y reportes de flota. La sesión se autentica con Supabase Auth; las reglas generan alertas determinísticas por kilometraje o fecha."
+  },
+  "servers": [{ "url": "http://localhost:3000", "description": "Desarrollo local" }],
+  "components": {
+    "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" } },
+    "schemas": {
+      "Vehicle": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "plate": { "type": "string" }, "make": { "type": "string" }, "model": { "type": "string" }, "year": { "type": "integer" }, "mileage": { "type": "integer", "minimum": 0 }, "status": { "type": "string", "enum": ["active", "maintenance", "inactive"] } }, "required": ["plate", "make", "model", "year", "mileage", "status"] },
+      "Maintenance": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "vehicle_id": { "type": "string", "format": "uuid" }, "service_date": { "type": "string", "format": "date" }, "mileage": { "type": "integer" }, "type": { "type": "string", "enum": ["Aceite", "Frenos", "Llantas", "Inspección", "Batería", "Otro"] }, "cost": { "type": "number", "minimum": 0 }, "workshop": { "type": "string" }, "notes": { "type": ["string", "null"] } }, "required": ["vehicle_id", "service_date", "mileage", "type", "cost", "workshop"] },
+      "Alert": { "type": "object", "properties": { "vehicleId": { "type": "string", "format": "uuid" }, "plate": { "type": "string" }, "vehicleName": { "type": "string" }, "type": { "type": "string" }, "status": { "type": "string", "enum": ["Vencido", "Próximo"] }, "dueBy": { "type": "string", "enum": ["kilometraje", "fecha"] }, "remaining": { "type": "integer" }, "dueLabel": { "type": "string" } }, "required": ["vehicleId", "plate", "type", "status", "dueBy", "remaining"] }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/health": { "get": { "security": [], "summary": "Estado de la API", "responses": { "200": { "description": "API disponible" } } } },
+    "/api/me": { "get": { "summary": "Perfil y rol autenticado", "responses": { "200": { "description": "Usuario actual" }, "401": { "description": "Sesión no válida" } } } },
+    "/api/vehicles": {
+      "get": { "summary": "Vehículos visibles para el usuario", "responses": { "200": { "description": "Lista de vehículos", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Vehicle" } } } } } } },
+      "post": { "summary": "Crear vehículo (admin)", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Vehicle" } } } }, "responses": { "201": { "description": "Vehículo creado" }, "403": { "description": "Se requiere administrador" } } }
+    },
+    "/api/vehicles/{id}": {
+      "patch": { "summary": "Actualizar vehículo (admin)", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Vehículo actualizado" }, "403": { "description": "Se requiere administrador" } } },
+      "delete": { "summary": "Eliminar vehículo (admin)", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "204": { "description": "Vehículo eliminado" }, "403": { "description": "Se requiere administrador" } } }
+    },
+    "/api/vehicles/{id}/mileage": { "post": { "summary": "Registrar kilometraje actual o de vehículo asignado", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "mileage": { "type": "integer", "minimum": 0 } }, "required": ["mileage"] } } } }, "responses": { "200": { "description": "Kilometraje actualizado" }, "403": { "description": "Vehículo no asignado" } } } },
+    "/api/maintenances": {
+      "get": { "summary": "Historial de mantenimientos visible por rol", "parameters": [{ "in": "query", "name": "vehicleId", "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Lista de mantenimientos" } } },
+      "post": { "summary": "Registrar mantenimiento (admin)", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Maintenance" } } } }, "responses": { "201": { "description": "Mantenimiento creado" }, "403": { "description": "Se requiere administrador" } } }
+    },
+    "/api/maintenances/{id}": {
+      "patch": { "summary": "Actualizar mantenimiento (admin)", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Mantenimiento actualizado" } } },
+      "delete": { "summary": "Eliminar mantenimiento (admin)", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "204": { "description": "Mantenimiento eliminado" } } }
+    },
+    "/api/rules": { "get": { "summary": "Reglas de alertas de la empresa", "responses": { "200": { "description": "Reglas por tipo de servicio" } } } },
+    "/api/rules/{id}": { "patch": { "summary": "Cambiar intervalos y márgenes de una regla (admin)", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Regla actualizada" } } } },
+    "/api/alerts": { "get": { "summary": "Alertas próximas o vencidas por fecha o kilometraje", "responses": { "200": { "description": "Alertas de la flota o de vehículos asignados", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Alert" } } } } } } } },
+    "/api/reports/fleet-summary": { "get": { "summary": "Resumen de flota y alertas", "responses": { "200": { "description": "Conteos de flota y costos" } } } },
+    "/api/reports/vehicle-history/{id}": { "get": { "summary": "Historial de un vehículo (driver solo ve vehículo asignado)", "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Historial de mantenimientos" }, "403": { "description": "Vehículo no asignado" } } } },
+    "/api/reports/costs": { "get": { "summary": "Costos por vehículo y período (admin)", "parameters": [{ "in": "query", "name": "from", "schema": { "type": "string", "format": "date" } }, { "in": "query", "name": "to", "schema": { "type": "string", "format": "date" } }], "responses": { "200": { "description": "Costos agregados" }, "403": { "description": "Se requiere administrador" } } } },
+    "/api/reports/maintenance-due": { "get": { "summary": "Mantenimientos próximos o vencidos", "responses": { "200": { "description": "Detalle de alertas" } } } },
+    "/api/reports/frequency": { "get": { "summary": "Frecuencia de mantenimientos por tipo y período (admin)", "parameters": [{ "in": "query", "name": "from", "schema": { "type": "string", "format": "date" } }, { "in": "query", "name": "to", "schema": { "type": "string", "format": "date" } }], "responses": { "200": { "description": "Frecuencia agrupada" }, "403": { "description": "Se requiere administrador" } } } }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "vigilant-mantenimiento-flotas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gestión de mantenimiento y alertas configurables para flotas de vehículos",
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev:api": "npm run dev -w @vigilant/api",
+    "dev:web": "npm run start -w @vigilant/web",
+    "build": "npm run build -w @vigilant/api && npm run build -w @vigilant/web",
+    "test": "npm run test -w @vigilant/api",
+    "lint": "npm run lint -w @vigilant/api && npm run lint -w @vigilant/web"
+  },
+  "engines": { "node": ">=22.22.3", "npm": ">=10.9.0" }
+}
